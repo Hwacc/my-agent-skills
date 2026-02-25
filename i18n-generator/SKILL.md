@@ -1,11 +1,12 @@
 ---
 name: i18n-generator
 description: Sync i18n JSON from xlsx with dry-run/write modes, override confirmation, locale mapping validation, and safe backups.
+version: 1.0.0
 ---
 
 # i18n-generator
 
-用于把 `.xlsx` 翻译表安全同步到本地 i18n JSON。此版本将固定说明拆分到 `@references`，默认只保留最小执行指令，降低单次调用 token。
+用于把 `.xlsx` 翻译表安全同步到本地 i18n JSON。
 
 ## 先做什么（强制）
 
