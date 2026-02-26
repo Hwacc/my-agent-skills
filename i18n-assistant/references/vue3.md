@@ -1,50 +1,39 @@
-# Vue 3 i18n 替换参考（默认：vue-i18n + Composition API）
+# Vue 3 i18n 替换参考（vue-i18n）
 
 本参考用于 `i18n-assistant` 在判定为 **Vue 3** 时执行“硬编码文案 → i18n 调用”的最小安全替换。
 
 ## 约定与默认
 
-- **模板中**：`{{ $t('key') }}` 仍常见（取决于是否全局注入）。
-- **`<script setup>`/Composition API**：通常通过 `const { t } = useI18n()` 然后 `t('key')`。
-- 若项目全局约定只用 `$t` 或只用 `t`，以项目现状为准（不要混用）。
+- **`<template>`**: 常见`{{ $t('key') }}` 。
+- **`<script setup>`**: 通常`import {useI18n} from 'vue-i18n`后通过 `const { t } = useI18n()` 然后 `t('key')`。
 
 ## 识别与替换规则
 
 ### 模板文本节点
 
-- `<span>Save</span>` → `<span>{{ $t('common.save') }}</span>`（若模板可用 `$t`）
-
-如果项目约定模板里不用 `$t`（只在脚本中 `t`），则将模板文案改为使用计算属性/局部变量暴露出来（但要保持最小改动；必要时停下说明）。
+- `<span>Save</span>` → `<span>{{ $t('common.save') }}</span>`
 
 ### 常见可见属性
 
-- `title="..."` → `:title="$t('key')"` 或 `:title="t('key')"`（按项目约定）
+- `title="..."` → `:title="$t('key')"`
 
-## `<script setup>` 文案
+### `<script setup>` 文案
 
-典型替换形态（仅作为模式，不强制生成同样代码）：
+典型替换形态：
 
 - `const { t } = useI18n()` 之后：
   - `notify('Saved')` → `notify(t('common.saved'))`
 
-若当前文件没有 i18n 上下文且引入会牵连较大，应先检查项目是否有统一封装（例如 `useAppI18n()`、`i18n.global.t`），优先用封装，避免到处引入。
+### 插值与富文本（组件插值）
 
-## 组件插值（Component Interpolation）
-
-当需要把一段翻译里包含链接/强调等节点时，优先使用项目已采用的组件插值方式。
-
-vue-i18n 常见组件插值写法（示意，按项目实际组件名/参数调整）：
-
-- `<i18n-t keypath="key">`
-  - 通过 slot/子节点提供组件片段
-
-若项目并未使用 `i18n-t`（或等价组件），不要“发明新约定”；应停下并给用户两条路：
-
-- 拆分文案成多个 key（无富文本）
-- 引入/启用组件插值（需项目接受）
+- 若 locale value 需要插值, 例如 `"Hello, {name}"`:
+  - **`<template>`**: `$t('key', { name })`
+  - **`<script setup>`**: `t('key', { name })` 
+- 若涉及 Component Interpolation 的节点时:
+  - 加载`references/vue-i18n-v9_v11.md`中Component Interpolation相关指南
 
 ## 最小改动原则
 
 - 只改文案表达式，不改 DOM 结构、指令、class/style、事件与 props。
-- 遇到歧义 key 或 locale 不包含该文案时，默认不替换并输出清单。
+- 遇到同文案多 key 的歧义，必须让用户选 key（不要猜）。
 

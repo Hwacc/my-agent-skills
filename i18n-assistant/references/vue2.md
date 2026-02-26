@@ -1,4 +1,4 @@
-# Vue 2 i18n 替换参考（默认：vue-i18n + Options API）
+# Vue 2 i18n 替换参考（vue-i18n）
 
 本参考用于 `i18n-assistant` 在判定为 **Vue 2** 时执行“硬编码文案 → i18n 调用”的最小安全替换。
 
@@ -45,10 +45,9 @@
 Vue2 场景常见约束：模板字符串拼接很容易破坏可翻译性。
 
 - 若 locale value 需要插值（例如 `"Hello, {name}"`），优先用 `$t('key', { name })`（如果项目使用 vue-i18n 标准参数）。
-- 若需要把链接/加粗等变成组件节点：
-  - Vue2 里常见做法是 `v-html`（高风险，默认不推荐）
-  - 若项目已引入 `i18n-t` / 等价方案，按项目现有组件插值写法处理；否则应**停下**并把风险/替代方案（例如拆分成多个文案）列给用户选择。
-
+- 若涉及 Component Interpolation 的节点时:
+  - 加载`references/vue-i18n-v8.md`中Component Interpolation相关指南
+  
 ## 最小改动原则
 
 - 只改文案表达式，不改 DOM 结构、指令、class/style、事件与 props。

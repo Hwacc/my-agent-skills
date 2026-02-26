@@ -1,4 +1,4 @@
-# React i18n 替换参考（默认：react-i18next）
+# React i18n 替换参考（react-i18next）
 
 本参考用于 `i18n-assistant` 在判定为 **React** 时执行“硬编码文案 → i18n 调用”的最小安全替换。
 
@@ -7,7 +7,6 @@
 - 默认假设项目使用 `i18next + react-i18next`：
   - 文案函数：`t('key')`
   - 组件插值：`<Trans i18nKey="key" />`
-- 如果项目明确使用 `react-intl`、`lingui` 等，必须改用项目对应 API（不要混用）。
 
 ## 识别“未被 i18n 包裹”的可见文案
 

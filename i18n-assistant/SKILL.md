@@ -1,6 +1,7 @@
 ---
 name: i18n-assistant
-description: Detects the current frontend framework (vue2/vue3/react) from package.json, loads the corresponding i18n replacement references, finds the highest-priority English locale file (en) in the project, then replaces hardcoded user-visible strings in target files/folders with framework-appropriate i18n calls (t/$t/<Trans>/<i18n-t>) by mapping text back to existing locale keys. Use when the user asks to “i18n 化/国际化/替换文案为 t/$t/Trans/i18n-t”, mentions vue-i18n/i18next/react-i18next, or wants to fill/replace i18n keys without changing component structure.
+description: Detects vue2/vue3/react, selects the primary en locale, and replaces hardcoded UI text with framework-appropriate i18n calls using existing locale keys.
+version: 1.0.0
 ---
 
 # i18n-assistant
@@ -15,31 +16,33 @@ description: Detects the current frontend framework (vue2/vue3/react) from packa
   - 不改动组件结构、CSS/class、props 语义、事件绑定、条件渲染逻辑；只替换文案表达方式。
   - 不在没有把握时“猜 key”；遇到歧义必须列出候选并让用户选择。
 
-## 必要输入（启动前确认）
+## 必要输入
 
-从用户消息中提取/确认（允许为空则按默认）：
+从用户消息中提取/确认：
+- **target**：用户指定要处理的文件/文件夹路径。
 
-- **target**：用户指定要处理的文件/文件夹路径；未指定则默认处理 `src/`（若不存在则改为项目根下的常见源码目录，如 `app/`、`packages/*/src/`，以实际结构为准）。
-- **localeDir（可选）**：用户指定 i18n 目录；未指定则自动搜索。
-- **framework（可选）**：用户明确指定框架时优先使用；否则自动识别。
-- **i18n 运行时库（可选）**：若用户说明使用 `vue-i18n` / `react-i18next` / `i18next` / `react-intl` 等，按说明优先；否则按 references 的默认约定处理。
+## 必要参数
+- **localeDir**：`src/locales/default`。
+- **framework**：自动识别。
+- **i18n-runtime**：从`package.json`中识别,以Major为准
 
 ## 总体流程（必须按顺序）
 
-### 1) 识别当前框架（vue2 / vue3 / react）
+### 1 识别当前框架（vue2 / vue3 / react）
 
-按以下顺序判定（以 `package.json` 为主，必要时参考 lockfile）：
+按以下顺序从 `package.json` 判定：
 
 1. **React**：存在 `react`（通常同时有 `react-dom`）。
 2. **Vue**：存在 `vue`：
-   - **Vue 3**：`vue` 主版本为 3（或存在 `@vue/compiler-sfc`、`vue/compiler-sfc` 等 Vue3 生态依赖）。
-   - **Vue 2**：`vue` 主版本为 2（或存在 `vue-template-compiler`、`@vue/composition-api` 等 Vue2 生态依赖）。
+   - **Vue 3**：`vue` Major为3。
+   - **Vue 2**：`vue` Major为2。
 
-冲突处理：
+#### 1.1 识别i18n-runtime
 
-- 若同时存在 React 与 Vue（单仓多包/微前端常见），则以 **target 所在包**的 `package.json` 判定；否则让用户指定要处理哪一套。
+从`package.json`中判定`i18n-runtime`版本,以Major为准
 
-### 2) 读取对应 references（按框架）
+
+### 2 读取对应 references（按框架）
 
 只读取与你判定的框架相关的参考指南，避免注入无关上下文：
 
@@ -47,21 +50,16 @@ description: Detects the current frontend framework (vue2/vue3/react) from packa
 - **Vue 3**：`references/vue3.md`
 - **React**：`references/react.md`
 
-若工程 i18n 方案与 references 默认不一致（例如 React 用 `react-intl` 而非 `react-i18next`），以用户说明为准，并在 references 的“兼容策略”小节里选最接近的做法。
+### 3 在当前工程搜索并读取 locale（只读一种语言）
 
-### 3) 在当前工程搜索并读取 locale（只读一种语言）
-
-目标：读取 **en** 的 locale 作为“反查 key 的字典”，一旦成功读取，**停止读取其他语言**。
+目标：从**localeDir**读取**en**的locale作为“反查 key 的字典”，一旦成功读取，**停止读取其他语言**。
 
 #### 3.1 locale 文件搜索策略（从高到低）
 
 优先搜索以下常见位置与命名（json/yaml/yml）：
 
-- `**/locales/en.{json,yaml,yml}`
-- `**/locales/en-*.{json,yaml,yml}`（如 `en-US`）
-- `**/i18n/en.{json,yaml,yml}`
-- `**/lang/en.{json,yaml,yml}`
-- `**/messages/en.{json,yaml,yml}`
+- `en.{json,yaml,yml}`
+- `en-*.{json,yaml,yml}`（如 `en-US`）
 
 若存在多份 en：
 
@@ -70,12 +68,15 @@ description: Detects the current frontend framework (vue2/vue3/react) from packa
 
 #### 3.2 en 不存在时的处理（强制询问）
 
-- 如果项目里找不到任何 `en*` locale，必须询问用户：
+- 如果**localeDir**里找不到任何 `en*` 相关locale，必须询问用户：
   - 让用户指定“最高优先级语言文件”（例如 `zh-CN.json`），并声明后续将以该文件反查 key。
 
-> 脚本占位：此步骤未来可用 `scripts/read_local.ts` 自动完成（本次先不引入/不实现脚本细节）。
+使用脚本自动完成 locale 读取与扁平化：
+- `bun run .cursor/skills/i18n-assistant/scripts/read_local.ts "src/locales/default"`
+- 若无 `en*`，按用户指定优先语言执行：`bun run .cursor/skills/i18n-assistant/scripts/read_local.ts "src/locales/default" --fallback=zh-cn`
+- 输出包含：`selected.filePath`、`selected.localeCode`、`flatLocale(key -> value)`，用于后续反查 key。
 
-### 4) 在 target 中替换硬编码文案为 i18n 调用（核心）
+### 4 在 target 中替换硬编码文案为 i18n 调用（核心）
 
 #### 4.1 扫描范围
 
@@ -85,11 +86,11 @@ description: Detects the current frontend framework (vue2/vue3/react) from packa
   - **Vue**：`*.vue`、必要时 `*.ts`/`*.js`（仅当明确是 UI 文案常量/配置）
   - **React**：`*.tsx`/`*.jsx`、必要时 `*.ts`/`*.js`
 
-#### 4.2 “未被 i18n 包裹的文案”定义（必须可解释）
+#### 4.2 未被 i18n 包裹的文案定义
 
 按框架分别判断（细节见对应 references）：
 
-- **Vue2/Vue3**：模板中的纯文本节点、以及可见属性（如 `placeholder/title/aria-label/alt` 等）里**不在** `$t('...')` / `{{ $t(...) }}` / `<i18n-t ...>` 中的字符串。
+- **Vue2/Vue3**：模板中的纯文本节点、以及可见属性（如 `placeholder/title/aria-label/alt` 等）里**不在** `$t('...')` / `{{ $t(...) }}` / `<i18n-t ...>` / `<i18n ...>` 中的字符串。
 - **React**：JSX 文本节点、以及可见属性（如 `placeholder/title/aria-label/alt` 等）里**不在** `t('...')` / `<Trans ...>` 中的字符串。
 
 排除项（默认不替换）：
@@ -101,16 +102,18 @@ description: Detects the current frontend framework (vue2/vue3/react) from packa
 
 把 locale 视为 `key -> value` 的字典（支持嵌套对象，需 flatten 成 `a.b.c` 形式）：
 
-- **匹配规则**（从强到弱）：
-  - value 与待替换文本 **完全一致**（忽略两端空白）且唯一匹配 → 直接使用该 key
-  - 多个 key value 相同 → 进入“歧义处理”
-  - 找不到匹配 → 默认不替换，并输出清单（作为后续补翻译/生成 key 的输入）
+- **匹配优先级**：
+  - 1. value 与待替换文本 **完全一致**（忽略两端空白）且唯一匹配 -> 直接使用该 key
+  - 2. value 与待替换文本进行 **语义匹配** (语义相同) -> 直接使用该key
+  - 3. 找不到匹配 → 默认不替换，并输出清单（作为后续补翻译/生成 key 的输入）
+- **匹配冲突**:
+  - 当待替换文本能够匹配多个value时 -> 进入“歧义处理”
 
 歧义处理（必须给用户可选项）：
 
 - 输出候选 key 列表，并优先推荐：
-  - 更短、更语义化的 key（如 `common.save` 优于 `page.settings.buttons.save`，仅当项目约定允许）
-  - 与当前文件/组件路径更接近的命名空间（如 `user.profile.*`）
+  - 更短、更语义化的 key（如 `common.save`, `common_save` 分别优于 `page.settings.buttons.save`, `page_settings_buttons_save`）
+  - 与当前文件/组件路径更接近的命名空间（如 `user.profile.*`或`user_propfile_*`）
 - 让用户选择后再改动（不要猜）。
 
 #### 4.4 生成替换代码（保持结构不变）
@@ -130,18 +133,15 @@ description: Detects the current frontend framework (vue2/vue3/react) from packa
 
 当满足任一条件时，优先走“组件插值”方案（按 references）：
 
-- locale value 含占位符（如 `{name}`、`{count}`）且需要拼接 React/Vue 节点
-- locale value 包含链接/强调等需要保留为组件的片段
-
-Vue 常见做法：`<i18n-t keypath="...">...</i18n-t>`（或项目约定的等价写法）  
-React 常见做法：`<Trans i18nKey="...">...</Trans>`（或项目约定的等价写法）
+- locale value 含占位符（如 `{name}`,`{count}`, `{br}`等）且需要拼接 React/Vue 节点
+- locale value 包含链接/强调(如`<a></a>`, `<strong></strong>`, `<br/>`, `<span></span>`等)需要保留为组件的片段
 
 #### 4.5 结果输出（必须）
 
 完成后输出一份可审查摘要：
 
-- **framework**：识别结果与依据（依赖项）
-- **locale**：选用的 locale 文件路径与语言（en 或用户指定）
+- **framework**：识别结果与依据
+- **locale**：选用的 locale 文件路径与语言
 - **changed files**：修改了哪些文件、每个文件替换了多少处
 - **skipped**：未替换的文案清单（找不到 locale 匹配 / 被排除 / 不确定）
 - **ambiguous**：歧义候选与需要用户决策的点
