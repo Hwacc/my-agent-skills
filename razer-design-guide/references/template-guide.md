@@ -90,11 +90,3 @@
 | 颜色引用 | 使用 color-guide 中的命名，非硬编码 |
 | 尺寸引用 | 使用 size-guide 中的档位，非随意值 |
 | Context | 特殊规则或覆盖说明 |
-
----
-
-## 相关文档
-
-- [design-guide.md](design-guide.md) — 通用设计原则
-- [color-guide.md](color-guide.md) — 颜色定义
-- [size-guide.md](size-guide.md) — 尺寸档位
