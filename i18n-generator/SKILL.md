@@ -1,46 +1,62 @@
 ---
 name: i18n-generator
 description: Sync i18n JSON from xlsx with dry-run/write modes, override confirmation, locale mapping validation, and safe backups.
-version: 1.0.0
+version: 2.0.0
 ---
 
 # i18n-generator
+用于把 `.xlsx` 翻译表安全同步到本地 i18n JSON.
 
-用于把 `.xlsx` 翻译表安全同步到本地 i18n JSON。
+## First Thing Frist
+开始工作前, 必须完整阅读此份指南
 
-## 先做什么（强制）
+## 覆盖评级
 
-1. 先确认输入：
-   - `excelPath`
-   - `localeDir`
-2. 先执行 dry-run，再决定是否 `--write`。
-3. 任何写入前，必须确认映射冲突为 0。
+### 评级前注意(非常重要)
+ - 当`localValue`是英文且`locale`不为`en`时, 认为是覆盖**fallback**, 其不参与评级, 直接进行覆盖
+  
+### 评级
+ - **S**: 严重冲突,语义和语言结构完全不一致
+  - **操作:** 必须暂停并向用户逐条列出冲突项(序号,key,覆盖评级,localValue,excelValue), 明确询问覆盖意图(例如: 全部覆盖, 按输入序号覆盖, 按输入序号忽略, 全部忽略等),在用户明确覆盖意图前不得执行覆盖
+ - **A**: 较严重,内容有实质差异，可能影响语义
+  - **操作:** 同上，必须暂停并等待用户确认 
+ - **B**: 中等,内容可能略有差异, 不影响语义
+  - **操作:** 同上，必须暂停并等待用户确认
+ - **C**: 轻微,仅格式差异,内容一致, 
+  - **操作:** 直接覆盖
+ - **D**: 可忽略,仅空格/格式差异, 
+  - **操作:** 可安全覆盖
 
-## 执行顺序（最短路径）
+## 工作流程
 
-1. 运行 dry-run：
-   - `bun run .cursor/skills/i18n-generator/scripts/sync_i18n.ts "<excelPath>" "<localeDir>" --override-mode=a`
-2. 检查报告中的：
-   - 覆盖候选数量
-   - 新增条目数量
-   - 自动生成 key 数量
-   - 映射冲突数量
-3. 若 `映射冲突 > 0`，停止写入并通过 `--override-map` 修正。
-4. 需要落盘时执行：
-   - `bun run .cursor/skills/i18n-generator/scripts/sync_i18n.ts "<excelPath>" "<localeDir>" --write --override-mode=a`
-5. 输出最终报告（覆盖/新增/自动 key/冲突/模式）。
+1. 生成同步分析报告:
+   - 使用`bun run "<reportScript>" "<excelPath>" "<localeDir> --ai"`生成同步分析报告`SyncReport`
+2. `SyncReport`分析和处理:
+   - 阅读**SyncReport 字段解释**
+   - 映射冲突:
+    - 跳过映射冲突相关字段,并使用``生成映射冲突报告
+   - 覆盖候选:
+    - 分别读取对应的`localValue`, `excelValue`和`diffType`
+    - 根据`localValue`和`excelValue`的**内容**, 参考`diffType`的**信息**,严谨给出**覆盖评级**
+    - 依据给出的**覆盖评级**执行其对应评级的**操作**
+     - 对于评级为 S、A、B 的覆盖候选:
+       1. 暂停执行
+       2. 向用户展示冲突详情并询问覆盖意图
+       3. 仅在用户明确回复覆盖意图后，才执行覆盖
+       4. 若用户拒绝或未回复，则跳过该项 
+     - 对于评级为 C, D的覆盖候选:
+       - 如果`localValue`或`excelValue`中有占位符(例如:由`{}`包裹的字段),则优先考虑使用包含占位符的`value`进行覆盖或不做替换 
+   - 新增条目:
+    - 依据`key`, `newValue`向`locale`对应的多语言文件写入新增条目
+    - 其中`key`的首位单词通常认为是**namespace**(例如: `game_abc`中的`game`, 分隔符常见有`_`, `.`)
+    - 根据**namespace**确认写入位置, 通常是相同**namespace**条目的末尾
+4. 生成处理报告:
+    - 使用`bun run "<reportScript>" "<excelPath>" "<localeDir>` 生成同步报告
+    - 报告中增加**覆盖评级**, **覆盖操作**到对应的**覆盖候选**中去
+    - 输出报告
 
-## 何时读取 references
 
-- 流程与分类细节：`@references/01-workflow-and-classification.md`
-- locale 映射与冲突规则：`@references/02-locale-mapping.md`
-- 命令与报告模板：`@references/03-commands-and-report.md`
-
-仅在当前任务需要该细节时读取对应文件，避免无关上下文注入。
-
-## 不可降低的安全门禁
-
-- 缺少 `en.json` 时必须失败。
-- 覆盖项未确认不得写入。
-- `--write` 且存在映射冲突时必须阻止写入。
+## 附加资源
+- **reportScript**: `./scripts/sync_report.ts`
+- **SyncReport 字段解释** `./references/params_guide.md`
 

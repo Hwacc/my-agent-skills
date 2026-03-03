@@ -16,7 +16,25 @@ export type TranslationRow = {
   _meta?: {
     isGeneratedKey?: boolean;
     originalKey?: string;
+    excelRow?: number;
   };
+};
+
+export type ExcelColumnMap = Record<string, string>;
+
+export type ReadExcelResult = {
+  rows: TranslationRow[];
+  columnMap: ExcelColumnMap;
+};
+
+const colIndexToLetter = (i: number): string => {
+  let result = '';
+  let n = i;
+  while (n >= 0) {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  }
+  return result;
 };
 
 const EXCEL_LOCALE_KEYS = ['de', 'es', 'fr', 'ja', 'ko', 'ptbr', 'ru', 'zhcn', 'zhtw'] as const;
@@ -98,7 +116,7 @@ const generateUniqueKey = (
   return candidate;
 };
 
-export const readExcelTranslations = (excelPath: string): TranslationRow[] => {
+export const readExcelTranslations = (excelPath: string): ReadExcelResult => {
   const resolvedPath = path.resolve(excelPath);
   const workbook = XLSX.readFile(resolvedPath);
   const firstSheetName = workbook.SheetNames[0];
@@ -107,28 +125,46 @@ export const readExcelTranslations = (excelPath: string): TranslationRow[] => {
   }
 
   const worksheet = workbook.Sheets[firstSheetName];
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+  const rawData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+    header: 1,
     defval: '',
-    raw: false,
+    raw: false
+  });
+
+  if (rawData.length < 2) {
+    return { rows: [], columnMap: {} };
+  }
+
+  const headerRow = rawData[0] as unknown[];
+  const columnMap: ExcelColumnMap = {};
+  headerRow.forEach((cell, colIndex) => {
+    const colName = normalizeColumnName(String(cell ?? ''));
+    if (colName) {
+      columnMap[colName] = colIndexToLetter(colIndex);
+    }
   });
 
   const results: TranslationRow[] = [];
   const usedKeys = new Set<string>();
 
-  rawRows.forEach((raw) => {
+  for (let rowIndex = 1; rowIndex < rawData.length; rowIndex += 1) {
+    const raw = rawData[rowIndex] as unknown[];
     const normalizedRow: Record<string, string> = {};
-    Object.entries(raw).forEach(([columnName, value]) => {
-      normalizedRow[normalizeColumnName(columnName)] = normalizeText(value);
+    headerRow.forEach((cell, colIndex) => {
+      const colName = normalizeColumnName(String(cell ?? ''));
+      if (colName) {
+        normalizedRow[colName] = normalizeText(raw[colIndex]);
+      }
     });
 
     const rawKey = normalizeText(normalizedRow.key);
     const en = normalizeText(normalizedRow.en);
 
     if (rawKey.toLowerCase() === 'ignore') {
-      return;
+      continue;
     }
     if (!en) {
-      return;
+      continue;
     }
 
     let key = rawKey;
@@ -140,6 +176,7 @@ export const readExcelTranslations = (excelPath: string): TranslationRow[] => {
       row._meta = {
         isGeneratedKey: true,
         originalKey: rawKey,
+        excelRow: rowIndex + 1
       };
     } else if (usedKeys.has(key)) {
       let index = 2;
@@ -152,10 +189,12 @@ export const readExcelTranslations = (excelPath: string): TranslationRow[] => {
       row._meta = {
         isGeneratedKey: true,
         originalKey: rawKey,
+        excelRow: rowIndex + 1
       };
       usedKeys.add(key);
     } else {
       usedKeys.add(key);
+      row._meta = { excelRow: rowIndex + 1 };
     }
 
     row.key = key;
@@ -166,9 +205,9 @@ export const readExcelTranslations = (excelPath: string): TranslationRow[] => {
       }
     });
     results.push(row);
-  });
+  }
 
-  return results;
+  return { rows: results, columnMap };
 };
 
 if ((import.meta as any).main) {
@@ -179,7 +218,7 @@ if ((import.meta as any).main) {
     process.exit(1);
   }
 
-  const rows = readExcelTranslations(excelPath);
+  const { rows, columnMap } = readExcelTranslations(excelPath);
   // eslint-disable-next-line no-console
-  console.log(JSON.stringify(rows, null, 2));
+  console.log(JSON.stringify({ rows, columnMap }, null, 2));
 }
