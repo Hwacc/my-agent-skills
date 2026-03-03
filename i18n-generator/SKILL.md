@@ -53,7 +53,7 @@ version: 2.0.0
     - 输出报告
 
 
-## 附加资源
-- **reportScript**: `./scripts/sync_report.ts`
-- **SyncReport 字段解释** `./references/params_guide.md`
+## References
+- [reportScript](./scripts/sync_report.ts)
+- [SyncReport 字段解释](./references/params_guide.md)
 
