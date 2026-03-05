@@ -1,0 +1,9 @@
+{
+  "name": "my-agent-skills",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "link-skills": "bun run ./scripts/link-skills.ts",
+    "prepare": "bun run ./scripts/setup-git-hooks.ts"
+  }
+}
