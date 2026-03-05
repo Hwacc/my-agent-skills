@@ -13,7 +13,8 @@ my-agent-skills/
 ├── scripts/
 │   ├── link-skills.ts      # 软连接管理脚本
 │   ├── setup-git-hooks.ts  # Git hooks 配置（pull 后自动 link-skills）
-│   └── setup-mcp.ts        # MCP 配置合并（将 skill 的 mcps.json 追加到全局配置）
+│   ├── setup-mcp.ts        # MCP 配置合并（link-skills 时调用：新增、更新）
+│   └── refresh-mcp.ts      # MCP 配置刷新（ standalone：新增、更新，不删除）
 ├── package.json
 └── README.md
 ```
@@ -66,6 +67,26 @@ bun run link-skills -- --force
 bun run link-skills -- --project-root "c:/my-workspace/my-agent-skills"
 ```
 
+### 仅刷新 MCP 配置
+
+若只需同步 MCP 配置、不操作软连接，可单独运行 `refresh-mcp`：
+
+```bash
+# 刷新 Cursor 和 Claude Code 的 MCP 配置
+bun run refresh-mcp
+
+# 仅刷新 Cursor
+bun run refresh-mcp -- --cursor
+
+# 仅刷新 Claude Code
+bun run refresh-mcp -- --claude
+
+# 指定工程根目录
+bun run refresh-mcp -- --project-root "c:/my-workspace/my-agent-skills"
+```
+
+**与 link-skills 的区别**：`refresh-mcp` 仅处理 MCP 配置，不创建/删除软连接。两者对 MCP 的合并规则一致（新增、更新，不删除全局中已有但 skills 中无的配置）。
+
 ### 自动执行机制
 
 - **Git hook**：执行 `bun install` 后自动配置 `post-merge` hook，每次 `git pull` 后自动执行 `bun run link-skills`
@@ -92,7 +113,9 @@ bun run link-skills -- --project-root "c:/my-workspace/my-agent-skills"
 ```
 
 **规则说明**：
-- 去重：若全局配置中已存在同名 server，则不追加（保留原有配置）
+- 完全重复：若全局配置中已存在同名 server 且配置相同，则跳过
+- 配置不同：若同名 server 配置不同，则更新为 skill 中的配置
+- 不删除：全局中已有但 skills 中无的 server 会保留
 - 自动创建：目标配置文件不存在时会自动创建
 - npx 建议加 `-y`：避免 npx 交互提示（如 `Need to install...?`）
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
- * 收集 skills 下的 mcp.json，合并到 Cursor/Claude Code 全局 MCP 配置
- * 格式：skill/mcp.json 为 [{ "serverName": { config } }, ...]
+ * 根据 skills 下的 mcps.json 刷新全局 MCP 配置
+ * 实现：增加、更新（不删除全局中已有但 skills 中无的配置）
+ * 格式：skill/mcps.json 为 [{ "serverName": { config } }, ...]
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
@@ -23,8 +24,14 @@ function getUserHome(): string {
   return home;
 }
 
+function getProjectRoot(): string {
+  const scriptPath = fileURLToPath(import.meta.url);
+  const scriptDir = path.dirname(scriptPath);
+  return path.resolve(scriptDir, '..');
+}
+
 /**
- * 从 skill 的 mcp.json 解析出 mcpServers 键值对
+ * 从 skill 的 mcps.json 解析出 mcpServers 键值对
  * 输入格式: [{ "server1": { config } }, { "server2": { config } }]
  */
 function parseSkillMcpJson(content: string): Record<string, McpServerConfig> {
@@ -35,7 +42,7 @@ function parseSkillMcpJson(content: string): Record<string, McpServerConfig> {
   try {
     arr = JSON.parse(trimmed);
   } catch {
-    console.warn('mcp.json 解析失败，跳过');
+    console.warn('mcps.json 解析失败，跳过');
     return {};
   }
 
@@ -58,7 +65,7 @@ function parseSkillMcpJson(content: string): Record<string, McpServerConfig> {
 }
 
 /**
- * 收集所有含 mcp.json 的 skill 的 MCP 配置
+ * 收集所有含 mcps.json 的 skill 的 MCP 配置（后出现的同名覆盖前面）
  */
 function collectSkillMcpConfigs(projectRoot: string): Record<string, McpServerConfig> {
   const skillsPath = path.join(projectRoot, SKILLS_DIR);
@@ -82,16 +89,14 @@ function collectSkillMcpConfigs(projectRoot: string): Record<string, McpServerCo
 
     const configs = parseSkillMcpJson(content);
     for (const [name, config] of Object.entries(configs)) {
-      if (!merged[name]) {
-        merged[name] = config;
-      }
+      merged[name] = config; // 覆盖：后扫描的 skill 覆盖先前的
     }
   }
   return merged;
 }
 
 /**
- * 深度比较两个配置是否相同（用于去重）
+ * 深度比较两个配置是否相同
  */
 function configEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -113,11 +118,13 @@ function configEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
- * 合并到全局 mcp.json，去重（按 server 名称，已存在则跳过）
+ * 根据 skills 聚合配置刷新全局 mcp.json
+ * 增加：skills 有但 global 无
+ * 更新：两者都有且配置不同
  */
-function mergeIntoGlobalConfig(
+function refreshGlobalConfig(
   configPath: string,
-  toMerge: Record<string, McpServerConfig>,
+  fromSkills: Record<string, McpServerConfig>,
   targetName: string
 ): void {
   let existing: { mcpServers?: Record<string, McpServerConfig> } = {};
@@ -132,58 +139,112 @@ function mergeIntoGlobalConfig(
     }
   }
 
-  if (!existing.mcpServers || typeof existing.mcpServers !== 'object') {
-    existing.mcpServers = {};
-  }
+  const existingServers =
+    existing.mcpServers && typeof existing.mcpServers === 'object' ? existing.mcpServers : {};
 
-  let added = 0;
-  let updated = 0;
-  for (const [name, config] of Object.entries(toMerge)) {
-    if (existing.mcpServers[name]) {
-      if (configEqual(existing.mcpServers[name], config)) {
-        continue; // 完全重复，跳过
-      }
-      updated++; // 同名但配置不同，更新
-    } else {
-      added++;
+  const added: string[] = [];
+  const updated: string[] = [];
+
+  for (const [name, config] of Object.entries(fromSkills)) {
+    if (!existingServers[name]) {
+      added.push(name);
+    } else if (!configEqual(existingServers[name], config)) {
+      updated.push(name);
     }
-    existing.mcpServers[name] = config;
   }
 
-  if (added > 0 || updated > 0) {
+  const newServers = { ...existingServers };
+  for (const name of added) {
+    newServers[name] = fromSkills[name];
+  }
+  for (const name of updated) {
+    newServers[name] = fromSkills[name];
+  }
+
+  const hasChanges = added.length > 0 || updated.length > 0;
+
+  if (hasChanges) {
+    const output = {
+      ...existing,
+      mcpServers: newServers,
+    };
+
+    const dir = path.dirname(configPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
     try {
-      writeFileSync(configPath, JSON.stringify(existing, null, 2), 'utf-8');
+      writeFileSync(configPath, JSON.stringify(output, null, 2), 'utf-8');
       const parts: string[] = [];
-      if (added > 0) parts.push(`新增 ${added} 个`);
-      if (updated > 0) parts.push(`更新 ${updated} 个`);
+      if (added.length) parts.push(`新增 ${added.length} 个`);
+      if (updated.length) parts.push(`更新 ${updated.length} 个`);
       console.log(`  ${targetName}: ${parts.join('，')}`);
     } catch (err) {
       console.error(`写入 ${targetName} 失败:`, err);
     }
+  } else {
+    console.log(`  ${targetName}: 无变化`);
   }
 }
 
-export function runSetupMcp(
-  projectRoot: string,
-  userHome: string,
-  options: { cursor: boolean; claude: boolean }
-): void {
-  const configs = collectSkillMcpConfigs(projectRoot);
-  if (Object.keys(configs).length === 0) return;
+function parseArgs(): { cursor: boolean; claude: boolean; projectRoot: string } {
+  const args = process.argv.slice(2);
+  let cursor = true;
+  let claude = true;
+  let projectRoot = getProjectRoot();
 
-  console.log('\n--- MCP 配置 ---');
-
-  if (options.cursor) {
-    const cursorPath = path.join(userHome, '.cursor', 'mcp.json');
-    const cursorDir = path.dirname(cursorPath);
-    if (!existsSync(cursorDir)) {
-      mkdirSync(cursorDir, { recursive: true });
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--cursor':
+        cursor = true;
+        claude = false;
+        break;
+      case '--claude':
+        cursor = false;
+        claude = true;
+        break;
+      case '--all':
+        cursor = true;
+        claude = true;
+        break;
+      case '--project-root': {
+        const raw = args[++i] ?? '';
+        if (raw) projectRoot = path.resolve(raw.replace(/^([a-zA-Z]):([^\\/])/, '$1:/$2'));
+        break;
+      }
+      default:
+        break;
     }
-    mergeIntoGlobalConfig(cursorPath, configs, 'Cursor');
   }
 
-  if (options.claude) {
-    const claudePath = path.join(userHome, '.claude.json');
-    mergeIntoGlobalConfig(claudePath, configs, 'Claude Code');
-  }
+  return { cursor, claude, projectRoot };
 }
+
+function main(): void {
+  const { cursor, claude, projectRoot } = parseArgs();
+  const userHome = getUserHome();
+
+  const configs = collectSkillMcpConfigs(projectRoot);
+
+  console.log('\n--- MCP 配置刷新 ---');
+
+  if (Object.keys(configs).length === 0) {
+    console.log('未发现 skill 下的 mcps.json，跳过');
+    return;
+  }
+
+  if (cursor) {
+    const cursorPath = path.join(userHome, '.cursor', 'mcp.json');
+    refreshGlobalConfig(cursorPath, configs, 'Cursor');
+  }
+
+  if (claude) {
+    const claudePath = path.join(userHome, '.claude.json');
+    refreshGlobalConfig(claudePath, configs, 'Claude Code');
+  }
+
+  console.log('\n完成');
+}
+
+main();

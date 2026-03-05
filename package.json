@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "link-skills": "bun run ./scripts/link-skills.ts",
+    "refresh-mcp": "bun run ./scripts/refresh-mcp.ts",
     "prepare": "bun run ./scripts/setup-git-hooks.ts"
   }
 }
