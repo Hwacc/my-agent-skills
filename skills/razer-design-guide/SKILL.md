@@ -1,7 +1,7 @@
 ---
 name: razer-design-guide
 description: Provides Razer brand design system and style guide for Pencil design work. Use when designing components in .pen files, working with Razer theme, creating UI components following Razer brand guidelines, or when the user mentions Razer design system, style guide, or Pencil design.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Razer 组件设计指南
@@ -33,17 +33,21 @@ version: 1.0.0
 
 1. **阅读指南**: 完整阅读此设计指南
 2. **检查上下文**: 查找 .pen 文件中与当前需求对应的 Context 节点中的上下文信息
-3. **检索细粒度指南**: 检索`references/details`中与当前需求对应的细粒度的设计指南
-4. **设计产物**: 设计产物应当严格遵循**模版指南**
+3. **检索详细设计指南**: 检索`references/details`中与当前需求对应的详细设计指南
+4. **使用详细设计指南**:
+   - 如果有对应的详细设计指南,则阅读并在设计过程中严格执行,**不进行过度创意**
+   - 如果没有对应的详细设计指南,则先在`references/details`创建对应的**详细设计指南**(例如: `button-guide.md`):
+     - 创建的**详细设计指南**应当至少包含`variants`,`states`和`sizes`的设计说明
+5. **设计产物**: 设计产物应当严格遵循**模版指南**
 
 ## 其他资源
 
 - **Razer Store**: https://www.razer.com/store 用于参考Razer设计风格(配色,样式,尺寸等)
-- `packages/themes/src/default/crafts` 用于参考项目中一些预设的组件尺寸
 
 ## MCP 工具使用指引
 
-以下 MCP 已配置于 `.cursor/mcp.json`，**需主动调用**时使用：
-- **shadcn MCP**：需参考 shadcn-ui 组件规范、props、结构时 → 使用 shadcn MCP 搜索/浏览对应组件
-- **tailwindcss MCP**：需 Tailwind 类名、颜色转换、文档或生成组件模板时 → 使用 tailwindcss MCP 工具
-- **ark-ui MCP**：需参考 Ark UI 组件、示例、样式指南时 → 使用 ark-ui MCP（list_components、get_example、styling_guide）
+以下 MCP 已配置在user scope中，**需主动调用**时使用:
+- **ark-ui**: 需要参考 Ark UI 组件、示例、样式指南时 → 使用 ark-ui（list_components、get_example、styling_guide）
+- **tailwindcss**: 需要 Tailwind 类名、颜色转换、文档或生成组件模板时 → 使用 tailwindcss MCP 工具
+- **rark-crafts**: 需要参考正在开发的Razer组件库预设的`sizes`, `variants`, `animate`时 → 使用 rark-crafts MCP
+

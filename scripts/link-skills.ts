@@ -237,7 +237,7 @@ function createSymlinks(
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const { cursor, claude, force, projectRoot } = parseArgs();
   const userHome = getUserHome();
   const configPaths = getConfigPaths(userHome);
@@ -259,7 +259,13 @@ function main(): void {
     createSymlinks(configPath, projectRoot, skills, force);
   }
 
+  const { runSetupMcp } = await import('./setup-mcp');
+  runSetupMcp(projectRoot, userHome, { cursor, claude });
+
   console.log('\n完成');
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

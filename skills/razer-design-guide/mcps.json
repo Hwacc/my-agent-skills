@@ -1,0 +1,25 @@
+[
+  {
+    "tailwindcss": {
+      "command": "npx",
+      "args": ["-y", "tailwindcss-mcp-server"]
+    }
+  },
+  {
+    "ark-ui": {
+      "command": "npx",
+      "args": ["-y", "@ark-ui/mcp"]
+    }
+  },
+  {
+    "rark-crafts": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@rustmcp/rust-mcp-filesystem",
+        "C:\\workspace\\rui-ark\\packages\\themes\\src\\default\\crafts",
+        "C:\\workspace\\rui-ark\\packages\\themes\\src\\razer\\crafts\\"
+      ]
+    }
+  }
+]
